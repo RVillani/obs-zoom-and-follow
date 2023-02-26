@@ -90,10 +90,19 @@ class CursorWindow:
     source_name = source_type = ''
     zoom_w = 1280
     zoom_h = 720
+    zoom_margins = False
+    zoom_edge_left = 0
+    zoom_edge_right = 0
+    zoom_top = 0
+    zoom_bottom = 0
+    zoom_margin_left = 0
+    zoom_margin_right = 0
+    zoom_margin_top = 0
+    zoom_margin_bottom = 0
     active_border = 0.15
     max_speed = 160
     smooth = 1.0
-    zoom_time = 300
+    zoom_duration = 300
 
     def update_sources(self):
         """
@@ -338,34 +347,16 @@ class CursorWindow:
                 self.source_x += self.source_x_override
                 self.source_y += self.source_y_override
 
-    def resetZI(self):
-        """
-        Reset the zoom-in timer
-        """
-        self.zi_timer = 0
-
-    def resetZO(self):
-        """
-        Reset the zoom-out timer
-        """
-        self.zo_timer = 0
-
-    def cubic_in_out(self, p):
-        """
-        Cubic in/out easing function. Accelerates until halfway, then
-        decelerates.
-
-        :param p: Linear temporal percent progress through easing from
-            0 to 1
-        :return: Adjusted percent progress
-        """
+    @staticmethod
+    def cubic_in_out(p):
         if p < 0.5:
             return 4 * p * p * p
         else:
             f = (2 * p) - 2
             return 0.5 * f * f * f + 1
 
-    def check_offset(self, arg1, arg2, smooth):
+    @staticmethod
+    def check_offset(arg1, arg2, smooth):
         """
         Checks if a given value is offset from pivot value and provides
         an adjustment towards the pivot based on a smoothing factor
@@ -387,76 +378,53 @@ class CursorWindow:
             all connected displays
         :return: If the zoom window was moved
         """
+
+        # Get mouse location
+        x_o = mouse_pos[0]
+        y_o = mouse_pos[1]
         track = False
 
-        if ((mousePos[0] - (self.source_x + self.source_w) < 1)
-                and (mousePos[0] - self.source_x > -1)):
-            if ((mousePos[1] - (self.source_y + self.source_h) < 1)
-                    and (mousePos[1] - self.source_y > -1)):
+        if ((x_o - (self.source_x + self.source_w) < 1)
+                and (x_o - self.source_x > -1)):
+            if ((y_o - (self.source_y + self.source_h) < 1)
+                    and (y_o - self.source_y > -1)):
                 track = True
 
         if not track:
             return track
 
-        move = False
+        # Distance from cursor to zoom edges
+        border_x = int(self.zoom_w * self.active_border)
+        border_y = int(self.zoom_h * self.active_border)
 
-        # Find shortest dimension (usually height)
-        borderScale = min(self.zoom_w, self.zoom_h)
         # Get active zone edges
-        zoom_edge_left = (self.zoom_x
-                          + int(self.active_border * borderScale))
-        zoom_edge_right = (self.zoom_x
-                           + self.zoom_w
-                           - int(self.active_border * borderScale))
-        zoom_edge_top = (self.zoom_y
-                         + int(self.active_border * borderScale))
-        zoom_edge_bottom = (self.zoom_y
-                            + self.zoom_h
-                            - int(self.active_border * borderScale))
-
-        if zoom.active_border >= 0.5:
-            zoom_edge_left = (self.zoom_x
-                              + int(self.active_border * self.zoom_w))
-            zoom_edge_right = (self.zoom_x
-                               + self.zoom_w
-                               - int(self.active_border * self.zoom_w))
-            zoom_edge_top = (self.zoom_y
-                             + int(self.active_border * self.zoom_h))
-            zoom_edge_bottom = (self.zoom_y
-                                + self.zoom_h
-                                - int(self.active_border * self.zoom_h))
-
-        # Clamp zone edges at center
-        if zoom_edge_right < zoom_edge_left:
-            zoom_edge_left = self.zoom_x + int(self.zoom_w/2.0)
-            zoom_edge_right = zoom_edge_left
-
-        if zoom_edge_bottom < zoom_edge_top:
-            zoom_edge_top = self.zoom_y + int(self.zoom_h/2.0)
-            zoom_edge_bottom = zoom_edge_top
+        zoom_edge_left = self.zoom_x + border_x
+        zoom_edge_right = self.zoom_x + self.zoom_w - border_x
+        zoom_edge_top = self.zoom_y + border_y
+        zoom_edge_bottom = self.zoom_y + self.zoom_h - border_y
 
         # Set smoothing values
-        smoothFactor = 1 if self.update else int((self.smooth * 9) / 10 + 1)
+        smooth_factor = 1 if self.update else int((self.smooth * 9) / 10 + 1)
+
+        move = False
 
         # Set x and y zoom offset
-        x_o = mousePos[0] - self.source_x
-        y_o = mousePos[1] - self.source_y
+        x_o -= self.source_x
+        y_o -= self.source_y
 
-        # Set x and y zoom offset
-        offset_x = offset_y = 0
 
         if x_o < zoom_edge_left:
-            offset_x = self.check_offset(x_o, zoom_edge_left, smoothFactor)
+            offset_x = self.check_offset(x_o, zoom_edge_left, smooth_factor)
             move = True
         elif x_o > zoom_edge_right:
-            offset_x = self.check_offset(x_o, zoom_edge_right, smoothFactor)
+            offset_x = self.check_offset(x_o, zoom_edge_right, smooth_factor)
             move = True
 
-        if y_o < zoom_edge_top:
-            offset_y = self.check_offset(y_o, zoom_edge_top, smoothFactor)
+        if y_o < zoom_edge_top
+            offset_y = self.check_offset(y_o, zoom_edge_top, smooth_factor)
             move = True
-        elif y_o > zoom_edge_bottom:
-            offset_y = self.check_offset(y_o, zoom_edge_bottom, smoothFactor)
+        elif y_o > zoom_edge_bottom
+            offset_y = self.check_offset(y_o, zoom_edge_bottom, smooth_factor)
             move = True
 
         # Max speed clamp
@@ -500,13 +468,13 @@ class CursorWindow:
         elif self.zoom_y > y_max:
             self.zoom_y = y_max
 
-    def set_crop(self, inOut):
+    def set_crop(self, zoom_direction):
         """
         Set dimensions of the crop filter used for zooming
 
         :param inOut: direction of the filter zoom, in or out
         """
-        totalFrames = int(self.zoom_time / self.refresh_rate)
+        total_frames = int(self.zoom_duration / self.refresh_rate)
 
         source = obs.obs_get_source_by_name(self.source_name)
         crop = obs.obs_source_get_filter_by_name(source, "ZoomCrop")
@@ -514,70 +482,72 @@ class CursorWindow:
         if crop is None:  # create filter
             _s = obs.obs_data_create()
             obs.obs_data_set_bool(_s, "relative", False)
-            f = obs.obs_source_create_private("crop_filter",
-                                              "ZoomCrop", _s)
-            obs.obs_source_filter_add(source, f)
-            obs.obs_source_release(f)
+            crop_filter = obs.obs_source_create_private("crop_filter", "ZoomCrop", _s)
+            obs.obs_source_filter_add(source, crop_filter)
+            obs.obs_source_release(crop_filter)
             obs.obs_data_release(_s)
+            crop = obs.obs_source_get_filter_by_name(source, "ZoomCrop")
 
-        s = obs.obs_source_get_settings(crop)
-        i = obs.obs_data_set_int
+        crop_settings = obs.obs_source_get_settings(crop)
+        set_crop_int = obs.obs_data_set_int
 
-        if inOut == 0:
-            self.resetZI()
-            if self.zo_timer < totalFrames:
+        if zoom_direction == 0:
+            # zooming out
+            self.zi_timer = 0 # Reset zoom-in timer
+            if self.zo_timer < total_frames:
                 self.zo_timer += 1
-                time = self.cubic_in_out(self.zo_timer / totalFrames)
-                i(s, "left", int(((1 - time) * self.zoom_x)))
-                i(s, "top", int(((1 - time) * self.zoom_y)))
-                i(
+                time = self.cubic_in_out(self.zo_timer / total_frames)
+                set_crop_int(crop_settings, "left", int(((1 - time) * self.zoom_x)))
+                set_crop_int(crop_settings, "top", int(((1 - time) * self.zoom_y)))
+                set_crop_int(
                     s,
                     "cx",
                     self.zoom_w + int(time * (self.source_w - self.zoom_w)),
                 )
-                i(
+                set_crop_int(
                     s,
                     "cy",
                     self.zoom_h + int(time * (self.source_h - self.zoom_h)),
                 )
                 self.update = True
             else:
-                i(s, "left", 0)
-                i(s, "top", 0)
-                i(s, "cx", self.source_w)
-                i(s, "cy", self.source_h)
+                set_crop_int(crop_settings, "left", 0)
+                set_crop_int(crop_settings, "top", 0)
+                set_crop_int(crop_settings, "cx", self.source_w)
+                set_crop_int(crop_settings, "cy", self.source_h)
                 self.update = False
         else:
-            self.resetZO()
-            if self.zi_timer < totalFrames:
+            # zooming in
+            self.zo_timer = 0 # Reset zoom-out timer
+            if self.zi_timer < total_frames:
                 self.zi_timer += 1
-                time = self.cubic_in_out(self.zi_timer / totalFrames)
-                i(s, "left", int(time * self.zoom_x))
-                i(s, "top", int(time * self.zoom_y))
-                i(
-                    s,
+                time = self.cubic_in_out(self.zi_timer / total_frames)
+                set_crop_int(crop_settings, "left", int(time * self.zoom_x))
+                set_crop_int(crop_settings, "top", int(time * self.zoom_y))
+                set_crop_int(
+                    crop_settings,
                     "cx",
                     self.source_w - int(time * (self.source_w - self.zoom_w)),
                 )
-                i(
-                    s,
-                    "cy",
+                set_crop_int(
+                    crop_settings,
                     self.source_h - int(time * (self.source_h - self.zoom_h)),
                 )
                 self.update = True if time < 0.8 else False
             else:
-                i(s, "left", int(self.zoom_x))
-                i(s, "top", int(self.zoom_y))
-                i(s, "cx", int(self.zoom_w))
-                i(s, "cy", int(self.zoom_h))
+                set_crop_int(crop_settings, "left", self.zoom_x)
+                set_crop_int(crop_settings, "top", self.zoom_y)
+                set_crop_int(crop_settings, "cx", self.zoom_w)
+                set_crop_int(crop_settings, "cy", self.zoom_h)
                 self.update = False
 
-        obs.obs_source_update(crop, s)
+        obs.obs_source_update(crop, crop_settings)
 
-        obs.obs_data_release(s)
+        obs.obs_data_release(crop_settings)
         obs.obs_source_release(source)
         obs.obs_source_release(crop)
-        if (inOut == 0) and (self.zo_timer >= totalFrames):
+
+        if (zoom_direction == 0) and (self.zo_timer >= total_frames):
             obs.remove_current_callback()
 
     def tracking(self):
@@ -609,14 +579,20 @@ def script_defaults(settings):
     obs.obs_data_set_default_bool(settings,
                                   "Manual Monitor Override", False)
     obs.obs_data_set_default_bool(settings, "Manual Offset", False)
-    obs.obs_data_set_default_int(settings, "Width", 1280)
-    obs.obs_data_set_default_int(settings, "Height", 720)
-    obs.obs_data_set_default_double(settings, "Border", 0.15)
-    obs.obs_data_set_default_int(settings, "Speed", 160)
-    obs.obs_data_set_default_double(settings, "Smooth", 1.0)
-    obs.obs_data_set_default_int(settings, "Zoom", 300)
-    obs.obs_data_set_default_int(settings, "Manual X Offset", 0)
-    obs.obs_data_set_default_int(settings, "Manual Y Offset", 0)
+    obs.obs_data_set_default_int(settings, "interval", zoom.refresh_rate)
+    obs.obs_data_set_default_int(settings, "Width", zoom.zoom_w)
+    obs.obs_data_set_default_int(settings, "Height", zoom.zoom_h)
+    obs.obs_data_set_default_double(settings, "Border", zoom.active_border)
+    obs.obs_data_set_default_bool(settings, "Margins", False)
+    obs.obs_data_set_default_int(settings, "ZoomLeft", zoom.zoom_margin_left)
+    obs.obs_data_set_default_int(settings, "ZoomRight", zoom.zoom_margin_right)
+    obs.obs_data_set_default_int(settings, "ZoomTop", zoom.zoom_margin_top)
+    obs.obs_data_set_default_int(settings, "ZoomBottom", zoom.zoom_margin_bottom)
+    obs.obs_data_set_default_int(settings, "Speed", zoom.max_speed)
+    obs.obs_data_set_default_double(settings, "Smooth", zoom.smooth)
+    obs.obs_data_set_default_int(settings, "Zoom", int(zoom.zoom_duration))
+    obs.obs_data_set_default_int(settings, "Manual Monitor Width", get_monitors()[0].width)
+    obs.obs_data_set_default_int(settings, "Manual Monitor Height", get_monitors()[0].height)
 
 
 def script_update(settings):
@@ -653,10 +629,15 @@ def script_update(settings):
     zoom.manual_offset = obs.obs_data_get_bool(settings, "Manual Offset")
     zoom.zoom_w = obs.obs_data_get_int(settings, "Width")
     zoom.zoom_h = obs.obs_data_get_int(settings, "Height")
+    zoom.zoom_margins = obs.obs_data_get_bool(settings, "Margins")
+    zoom.zoom_margin_left = obs.obs_data_get_int(settings, "ZoomLeft")
+    zoom.zoom_margin_right = obs.obs_data_get_int(settings, "ZoomRight")
+    zoom.zoom_margin_top = obs.obs_data_get_int(settings, "ZoomTop")
+    zoom.zoom_margin_bottom = obs.obs_data_get_int(settings, "ZoomBottom")
     zoom.active_border = obs.obs_data_get_double(settings, "Border")
     zoom.max_speed = obs.obs_data_get_int(settings, "Speed")
     zoom.smooth = obs.obs_data_get_double(settings, "Smooth")
-    zoom.zoom_time = obs.obs_data_get_double(settings, "Zoom")
+    zoom.zoom_duration = obs.obs_data_get_double(settings, "Zoom")
     if zoom.monitor_size_override or zoom.manual_offset:
         zoom.source_x_override = obs.obs_data_get_int(settings,
                                                       "Manual X Offset")
@@ -776,6 +757,11 @@ def script_properties():
     rm = obs.obs_properties_add_button(props,
                                        "Refresh monitors", "Refresh list of monitors", lambda props,
                                        prop: True if callback(props, zs) else True)
+    obs.obs_properties_add_bool(props, "Margins", "Constrain zoom in source with margins")
+    obs.obs_properties_add_int(props, "ZoomLeft", "Zoom left margin", 0, 5120, 1)
+    obs.obs_properties_add_int(props, "ZoomRight", "Zoom right margin", 0, 5120, 1)
+    obs.obs_properties_add_int(props, "ZoomTop", "Zoom top margin", 0, 3840, 1)
+    obs.obs_properties_add_int(props, "ZoomBottom", "Zoom bottom margin", 0, 3840, 1)
 
     mon_size = obs.obs_properties_add_bool(props,
                                            "Manual Monitor Dim", "Enable Manual Monitor Dimensions")
@@ -851,7 +837,6 @@ def script_load(settings):
     zoom.update_sources()
     zoom.new_source = True
 
-
 def script_unload():
     obs.obs_hotkey_unregister(toggle_zoom)
     obs.obs_hotkey_unregister(toggle_follow)
@@ -871,17 +856,16 @@ def toggle_zoom(pressed):
     if pressed:
         if new_source:
             zoom.update_sources()
-        if zoom.source_name != "" and zoom.flag:
+        if zoom.source_name != "" and not zoom.lock:
             zoom.update_source_size()
             obs.timer_add(zoom.tick, zoom.refresh_rate)
             zoom.lock = True
-            zoom.flag = False
-        elif not zoom.flag:
-            zoom.flag = True
+        elif zoom.lock:
             zoom.lock = False
         print(f"Zoom: {zoom.lock}")
         if zoom.lock:
             print(f"Mouse position: {get_position()}")
+
 
 
 def toggle_follow(pressed):
