@@ -687,10 +687,10 @@ class CursorWindow:
         """
         Checks if zoom window exceeds window dimensions and clamps it if true
         """
-        x_min = 0
-        x_max = self.source_w - (self.zoom_w * self.monitor_scale)
-        y_min = 0
-        y_max = self.source_h - (self.zoom_h * self.monitor_scale)
+        x_min = self.source_x
+        x_max = x_min + self.source_w - (self.zoom_w * self.monitor_scale)
+        y_min = self.source_y
+        y_max = y_min + self.source_h - (self.zoom_h * self.monitor_scale)
 
         self.zoom_x_target = max(x_min, min(self.zoom_x_target, x_max))
         self.zoom_y_target = max(y_min, min(self.zoom_y_target, y_max))
